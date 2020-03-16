@@ -1,0 +1,133 @@
+<ROSETTASCRIPTS>
+
+  <SCOREFXNS>
+    # Centroid-level score function is used to score after NubInitio and in case chainbreak closure is needed.
+<ScoreFunction name="centroid_" weights="cen_std" patch="score4L" >
+  <Reweight scoretype="atom_pair_constraint" weight="2.0" />
+  <Reweight scoretype="angle_constraint" weight="2.0" />
+  <Reweight scoretype="dihedral_constraint" weight="2.0" />
+  <Reweight scoretype="chainbreak" weight="2.0"/>
+  <Reweight scoretype="linear_chainbreak" weight="2.0"/>
+  <Reweight scoretype="overlap_chainbreak" weight="2.0"/>
+</ScoreFunction>
+<ScoreFunction name="fullatom2_" > weights="ref2015" >
+  <Reweight scoretype="atom_pair_constraint" weight="2.0" />
+  <Reweight scoretype="angle_constraint" weight="2.0" />
+  <Reweight scoretype="dihedral_constraint" weight="2.0" />
+</ScoreFunction>
+<ScoreFunction name="design_sfxn_" > weights="ref2015" >
+  <Reweight scoretype="aa_composition" weight="1.0" />
+  <Reweight scoretype="p_aa_pp" weight="0.8" />
+  <Reweight scoretype="atom_pair_constraint" weight="2.0" />
+  <Reweight scoretype="rama" weight="0.35" />
+</ScoreFunction>
+  </SCOREFXNS>
+
+  <RESIDUE_SELECTORS>
+    <xi:include href="./selectors.xml" />    # Standard FFL ResidueSelectors.
+    # Template Scaffold Selectors.
+    <Index name="motif1" resnums="18A-34A" />
+    <Index name="motif2" resnums="63A-72A" />
+    <Or name="insertion" selectors="motif1,motif2" />
+	<Not name="!insertion" selector="insertion" />      # Placement of the motif (region we remove).
+    <Chain name="chA" chains="A" />                   # Template Chain (there can only be one!).
+    <Not name="!chA" selector="chA" />
+    # Target Motif Selectors.
+
+    <Index name="query_motif1" resnums="196F-212F" />
+    <Index name="query_motif2" resnums="63F-69F" />  # Functional Motif of interest.
+    <Or name="query_motif" selectors="query_motif1,query_motif2" />
+    <Chain name="chP" chains="F" />
+	<And name="chA_insert" selectors="chA,!insertion" />
+
+    <SecondaryStructure name="helix" ss="H" use_dssp="1" />
+    <SecondaryStructure name="strand" ss="E" use_dssp="1" />
+
+    <Layer name="surface" select_core="false" select_boundary="false" select_surface="true" use_sidechain_neighbors="true"/>
+    <Layer name="boundary" select_core="false" select_boundary="true" select_surface="false" use_sidechain_neighbors="true"/>
+    <Layer name="core_residues" select_core="true" select_boundary="false" select_surface="false" use_sidechain_neighbors="true"/>
+
+  </RESIDUE_SELECTORS>
+
+  <MOVE_MAP_FACTORIES>
+    <xi:include href="./movemap.xml" />      # Standard FFL MoveMap
+  </MOVE_MAP_FACTORIES>
+
+  <TASKOPERATIONS>
+    <xi:include href="./taskoperators.xml"/> # Standard FFL TaskOperators
+
+
+</TASKOPERATIONS>
+
+
+  <MOVERS>
+    # We will save the template so we can, at the end, see how far from it our desing went
+    <SavePoseMover name="saveTemplate" restore_pose="0" reference_name="template_pose" />
+    # Both to create the fragments needed for NubInitio as well as for the NubInitio itself,
+    # only one-chain templates can be considered, so we'll need to delete the rest.
+    <DeleteRegionMover name="removeExtraChains" residue_selector="!chA" />
+    # This is one of the alternatives to load the target motif's pdb file.
+    <SavePoseMover name="load_target" reference_name="target_pose" pdb_file="4jhw.pdb" />
+    # The creates the fragments (if they need to be created) or loads them from a file
+    # into the DataMap with the "frags" identifier (that needs to be specified in the NubInitio).
+    <StructFragmentMover name="FragmentPicker" prefix="frags"
+      vall_file="PATH_TO/databases/vall.2011.07/vall.jul19.2011.gz" output_frag_files="1"
+      small_frag_file="frags.200.3mers" large_frag_file="frags.200.9mers"
+    />
+    # Constraints have to be used to guide the ab initio folding.
+    <AddConstraints name="addCST" >
+      <AtomPairConstraintGenerator name="atompairCST" sd="1.0" ca_only="true"
+        use_harmonic="true" unweighted="true" min_seq_sep="6" max_distance="40" residue_selector="chA"
+      />
+    </AddConstraints>
+    # The NubInitio folding is done here.
+    <NubInitioMover name="FFL" fragments_id="frags" template_motif_selector="insertion" use_cst="true"
+      clear_motif_cst="true" rmsd_threshold="2.5" fullatom_scorefxn="fullatom2_" angle_weight="2.0" dihedral_weight="2" >
+      <Nub reference_name="target_pose" residue_selector="query_motif" >
+        <Segment order="2" n_term_flex="1" c_term_flex="0" editable="1,4,12,16" />
+	<Segment order="1" n_term_flex="1" c_term_flex="0" editable="2,5" />
+      </Nub>
+    </NubInitioMover>
+    # Edit the sequence to stabilize the protein
+    <FastDesign name="DesignRelax" scorefxn="fullatom2_"
+		clear_designable_residues="true"
+               task_operations="FFLMOTIF_TASKOP,FFLTEMPLATE_TASKOP"
+               repeats="3" delete_virtual_residues_after_FastRelax="true"
+               movemap_factory="FFLSTANDARD_MOVEMAP" >
+    </FastDesign>
+
+    <NubInitioLoopClosureMover name="FFLCCD" fragments_id="frags" break_side_ramp="true" />
+    <ResidueLabelsToPymolSelectionMover name="pymolselect" pdb_count="true" />
+    <ClearConstraintsMover name="cleanCST" />
+    <AddHelixSequenceConstraints name="helix_capping" residue_selector="TEMPLATE"
+        reset="false" min_helix_length="8"
+        add_n_terminal_constraints="true" min_n_terminal_charges="2" n_terminal_residues="3" n_terminal_constraint_strength="15.0"
+        add_c_terminal_constraints="true" min_c_terminal_charges="2" c_terminal_residues="3" c_terminal_constraint_strength="15.0"
+        add_overall_constraints="true" types_to_avoid="ASN ASP SER GLY THR VAL" overall_max_count="2" overall_constraints_strength="5.0"
+        add_alanine_constraints="true" desired_alanine_fraction="0.1" ala_constraint_under_strength="0.2" ala_constraint_over_strength="0.2"
+        add_hydrophobic_constraints="false" desired_min_hydrophobic_fraction="0.25" hydrophobic_constraint_strength="0.2"
+        />
+ <DisplayPoseLabelsMover name="showDesign" />
+  </MOVERS>
+
+  <APPLY_TO_POSE>
+  </APPLY_TO_POSE>
+
+  <PROTOCOLS>
+    # Preparing Template
+    <Add mover="saveTemplate" />
+    <Add mover="removeExtraChains" />
+    <Add mover="FragmentPicker" />
+    <Add mover="addCST" />
+    # Fold
+    <Add mover="FFL" />
+    <Add mover="cleanCST" />
+    # Design
+    <Add mover="addCST" />
+    <Add mover="showDesign" />
+    <Add mover="DesignRelax" />
+    <Add mover="cleanCST" />
+    <Add mover="FFLCCD"/>
+  </PROTOCOLS>
+  <OUTPUT />
+</ROSETTASCRIPTS>

@@ -1,0 +1,74 @@
+{
+  "layers" : [
+     [
+      {
+        "type" : "E",
+        "length" : 8,
+        "tilt_y" : -25,
+        "shift_x" : 4.5,
+      	"tilt_y" : -75,
+        "tilt_z" : 2.5,
+	      "shift_z" : 20.8
+      }
+    ],
+    [
+     {
+	      "type" : "E",
+        "length" : 8,
+	      "shift_z" : 13.8,
+	      "tilt_y" : -92,
+        "tilt_z" : 0.5,
+	      "shift_x" : 2.7
+     },
+     {
+        "type" : "H",
+        "length" : 15,
+	      "shift_z" : 17.6,
+	      "tilt_y" : -65,
+        "tilt_x" : 20,
+        "tilt_z" : -5,
+	      "shift_x" : 12.0,
+        "shift_y" : -1
+     }
+    ],
+    [
+      {
+        "type" : "E",
+        "length" : 8,
+	      "tilt_y" : -85,
+        "tilt_z" : 3,
+	      "shift_x" : 1.8,
+	      "shift_y" : -1,
+	      "shift_z" : 6.8
+      }
+    ],
+    [
+      {
+        "type" : "E",
+        "ref" : "101.strand1",
+        "tilt_x" : 55,
+        "shift_x" : 1.8,
+        "shift_y" : -2,
+        "tilt_y" : -15,
+        "edge" : -1
+      }
+    ]
+  ],
+  "config" : {
+    "name" : "101"
+  },
+  "motifs" : [
+    {
+      "id" : "101",
+      "chain" : "A",
+      "pdbfile" : "template.pdb",
+      "segments" : [
+        {
+          "ini" : 28,
+          "end" : 33,
+          "id" : "strand1"
+        }
+      ]
+    }
+  ]
+}

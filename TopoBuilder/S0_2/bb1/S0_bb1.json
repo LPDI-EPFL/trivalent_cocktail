@@ -1,0 +1,45 @@
+{
+  "config": {
+    "name": "S0_bb1",
+    "default_z": 11,
+    "default_x_h": 11
+  },
+  "layers" : [
+    [
+
+        {"type" : "H",
+        "length" : 20,
+        "shift_x": 5,
+        "shift_y": 0,
+        "tilt_y": 0,
+"tilt_z": 25}],
+    [
+        {"type" : "H",
+        "ref": "S0.helix"},
+      {
+        "type" : "C",
+        "edge": 1,
+        "ref": "S0.loop"
+      }
+    ]
+  ],
+  "motifs": [
+    {
+      "id": "S0",
+      "pdbfile": "S0_1.39.pdb",
+      "chain": "A",
+      "segments": [
+        {
+          "ini": 42,
+          "end": 56,
+          "id": "loop"
+        },
+        {
+          "ini": 1,
+          "end": 21,
+          "id": "helix"
+        }
+      ]
+    }
+  ]
+}

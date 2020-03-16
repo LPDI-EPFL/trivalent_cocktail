@@ -1,0 +1,121 @@
+<ROSETTASCRIPTS>
+
+  <SCOREFXNS>
+    <ScoreFunction name="SFXN1" weights="talaris2014_highAlanine.wts" >
+    <Reweight scoretype="aa_composition" weight="5.0" />
+    <Reweight scoretype="chainbreak" weight="5.0"/>
+    <Reweight scoretype="linear_chainbreak" weight="5.0"/>
+    <Reweight scoretype="overlap_chainbreak" weight="5.0"/>
+    </ScoreFunction>
+  </SCOREFXNS>
+
+  <RESIDUE_SELECTORS>
+    <Index name="epitope1" resnums="6-22"/>
+    <Index name="epitope2" resnums="51,53,54,56,57"/>
+    <Or name="full_epitope" selectors="epitope1,epitope2" />
+    <Not name="mutable" selector="full_epitope"/>
+    <Index name="core_positions" resnums="5,28,32,36,45,48,52,55" />
+    <Layer name="surface" select_surface="true" />
+    <Layer name="core" select_core="true" ball_radius="2.0" core_cutoff="4.0" use_sidechain_neighbors="true" />
+    <Layer name="boundary" select_boundary="true" />
+  </RESIDUE_SELECTORS>
+
+  <TASKOPERATIONS>
+    <OperateOnResidueSubset name="core_resfile" selector="core_positions" >
+    <RestrictAbsentCanonicalAASRLT aas="AFILMVW" />
+</OperateOnResidueSubset>
+<OperateOnResidueSubset name="core_resfile2" selector="core" >
+    <RestrictAbsentCanonicalAASRLT aas="AFILMVW" />
+</OperateOnResidueSubset>
+     <OperateOnResidueSubset name="restrict_epitope1" selector="epitope1" >
+     <PreventRepackingRLT />
+     </OperateOnResidueSubset>
+     <OperateOnResidueSubset name="restrict_epitope2" selector="epitope2" >
+     <PreventRepackingRLT />
+     </OperateOnResidueSubset>
+     <OperateOnResidueSubset name="restrict_boundary" selector="boundary" >
+     <RestrictToRepackingRLT/>
+     </OperateOnResidueSubset>
+<OperateOnResidueSubset name="restrict_core1" selector="core_positions" >
+     <PreventRepackingRLT />
+     </OperateOnResidueSubset>
+<OperateOnResidueSubset name="restrict_core2" selector="core" >
+     <PreventRepackingRLT />
+     </OperateOnResidueSubset>
+    <ExtraRotamersGeneric name="ex1ex2" ex1="1" ex2="1" />
+<OperateOnResidueSubset name="restrict_surface" selector="surface" >
+     <RestrictToRepackingRLT/>
+     </OperateOnResidueSubset>
+   </TASKOPERATIONS>
+
+  <FILTERS>
+    <ResidueCount name="cys_count" residue_types="CYS" max_residue_count="4" confidence="1" />
+    <ResidueCount name="ala_count" residue_types="ALA" max_residue_count="4" confidence="1" />
+    <ResidueCount name="aroma_count" residue_types="PHE,TYR,TRP" min_residue_count="1" max_residue_count="5" confidence="1" />
+    <CavityVolume name="cav_vol" confidence="0" />
+    <BuriedUnsatHbonds name="BUNS"  jump_number="0" cutoff="10" confidence="0"/>
+    <Rmsd name="RMSD" threshold="3.0" superimpose="1" by_aln="false"/>
+   <RmsdFromResidueSelectorFilter name="epitopeRMSD" CA_only="1" reference_selector="full_epitope" query_selector="full_epitope" confidence="0" />
+    <PackStat name="packstat" threshold="0.5" repeats="2" confidence="0" />
+    <CombinedValue name="comb_filters" confidence="0">
+	<Add filter_name="packstat" factor="0.5" />
+	<Add filter_name="aroma_count" factor="0.5" />
+    </CombinedValue>
+
+
+  </FILTERS>
+
+  <MOVERS>
+ <PackRotamersMover name="designsurface" scorefxn="SFXN1" task_operations="restrict_boundary,restrict_core2,restrict_core1,restrict_epitope1,restrict_epitope2"/>
+<FastDesign name="fdesign2" scorefxn="SFXN1" clear_designable_residues="false" ramp_down_constraints="false" repeats="2" task_operations="ex1ex2,core_resfile,core_resfile2,restrict_epitope1,restrict_epitope2" >
+    <MoveMap name="donotmovetheepitope">
+        <Span begin="6" end="22" chi="0" bb="0"/>
+        <Span begin="51" end="57" chi="0" bb="0"/>
+        <Jump number="1" setting="false" />
+     </MoveMap>
+   </FastDesign>
+<FastRelax name="frelax" />
+<LabelPoseFromResidueSelectorMover name="labeling1" property="TEMPLATE" residue_selector="mutable" />
+<LabelPoseFromResidueSelectorMover name="labeling2" property="MOTIF" residue_selector="full_epitope" />
+     <AtomTree name="setupWorkTree" fold_tree_file="foldtree.fold_tree" update_residue_variants="true" />
+     <AddHelixSequenceConstraints name="helix_capping" residue_selector="mutable"
+        reset="false" min_helix_length="8"
+        add_n_terminal_constraints="true" min_n_terminal_charges="3" n_terminal_residues="6" n_terminal_constraint_strength="15.0"
+        add_c_terminal_constraints="true" min_c_terminal_charges="3" c_terminal_residues="6" c_terminal_constraint_strength="15.0"
+        add_overall_constraints="true" types_to_avoid="ASN ASP SER GLY THR VAL" overall_max_count="2" overall_constraints_strength="5.0"
+        add_alanine_constraints="true" desired_alanine_fraction="0.08" ala_constraint_under_strength="0.2" ala_constraint_over_strength="0.2"
+        add_hydrophobic_constraints="false" desired_min_hydrophobic_fraction="0.25" hydrophobic_constraint_strength="0.2" />
+<StructFragmentMover name="FragmentPicker" prefix="frags" vall_file="/PATH_TO_DATABASE/vall.2011.07/vall.jul19.2011.gz" output_frag_files="0" small_frag_file="frag_1.200.3mers" large_frag_file="frag_1.200.9mers" />
+     <NubInitioLoopClosureMover name="LCCD" fragments_id="frags" />
+     <GenericMonteCarlo name="genericmc" mover_name="fdesign2" filter_name="comb_filters" trials="5" sample_type="low" temperature="0.6" drift="1" />
+ <ClearConstraintsMover name="cleanCST" />
+
+  </MOVERS>
+
+  <APPLY_TO_POSE>
+  </APPLY_TO_POSE>
+
+  <PROTOCOLS>
+    <Add mover_name="labeling1" />
+    <Add mover_name="labeling2" />
+    <Add mover_name="setupWorkTree" />
+    <Add mover_name="helix_capping" />
+    <Add mover_name="fdesign2" />
+    <Add mover_name="designsurface" />
+    <Add mover_name="cleanCST" />
+    <Add mover_name="FragmentPicker" />
+    <Add mover_name="LCCD" />
+    <Add filter_name="packstat" />
+    <Add filter_name="aroma_count" />
+    <Add filter_name="BUNS" />
+    <Add filter_name="ala_count" />
+    <Add filter_name="cav_vol" />
+    <Add mover_name="frelax" />
+    <Add filter_name="epitopeRMSD" />
+
+
+  </PROTOCOLS>
+
+  <OUTPUT />
+
+</ROSETTASCRIPTS>

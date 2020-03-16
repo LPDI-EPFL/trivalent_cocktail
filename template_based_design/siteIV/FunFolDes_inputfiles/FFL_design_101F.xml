@@ -1,0 +1,160 @@
+<ROSETTASCRIPTS>
+
+  <SCOREFXNS>
+    # Centroid-level score function is used to score after NubInitio and in case chainbreak closure is needed.
+    <ScoreFunction name="centroid" weights="cen_std" >
+	<Reweight scoretype="atom_pair_constraint" weight="2.0" />
+        <Reweight scoretype="angle_constraint" weight="2.0" />
+        <Reweight scoretype="dihedral_constraint" weight="2.0" />
+	<Reweight scoretype="chainbreak" weight="2.0"/>
+        <Reweight scoretype="linear_chainbreak" weight="2.0"/>
+        <Reweight scoretype="overlap_chainbreak" weight="2.0"/>
+   </ScoreFunction>
+
+    # Full Atom-level score function is used to repack disulfides in NubInitio and guide FastDesign.
+    <ScoreFunction name="fullatom" weights="talaris2014" >
+	<Reweight scoretype="atom_pair_constraint" weight="2.0" />
+        <Reweight scoretype="angle_constraint" weight="2.0" />
+        <Reweight scoretype="dihedral_constraint" weight="2.0" />
+    </ScoreFunction>
+    <ScoreFunction name="fullatom2" weights="talaris2014_lowala.wts" >
+    <Reweight scoretype="aa_composition" weight="2.0" />
+    <Reweight scoretype="p_aa_pp" weight="0.8" />
+    <Reweight scoretype="atom_pair_constraint" weight="2.0" />
+    <Reweight scoretype="rama" weight="0.35" />
+    </ScoreFunction>
+  </SCOREFXNS>
+
+  <RESIDUE_SELECTORS>
+    <xi:include href="./selectors.xml" />             # Standard FFL ResidueSelectors.
+    # Template Scaffold Selectors
+    <Index name="motif1" resnums="27A-33A" />
+    <Or name="insertion" selectors="motif1" />
+     	<Not name="!insertion" selector="insertion" />       # Placement of the motif (region we remove).
+    <Chain name="chA" chains="A" />                   # Template Chain (there can only be one!).
+    <Not name="!chA" selector="chA" />
+
+    # Target Motif Selectors.
+    <Index name="query_motif" resnums="1P-7P" />
+    <Chain name="chP" chains="P" />                   # As the design keeps the motifs chain,
+    <SecondaryStructure name="beta" use_dssp="true" ss="E" />
+    <SecondaryStructure name="helix" use_dssp="true" ss="H" />                                                  # this is the design's chain.
+    <Layer name="surface" select_surface="true" />
+    <Layer name="core" select_core="true" core_cutoff="3.8" />
+    <Layer name="boundary" select_boundary="true" />
+    <Or name="sheet_core" selectors="beta,core" />
+    <Or name="sheet_surface" selectors="beta,surface" />
+  </RESIDUE_SELECTORS>
+
+  <MOVE_MAP_FACTORIES>
+    <xi:include href="./movemap.xml" />      # Standard FFL MoveMap
+  </MOVE_MAP_FACTORIES>
+
+  <TASKOPERATIONS>
+    <xi:include href="./taskoperators.xml" /># Standard FFL TaskOperatorsi
+    <OperateOnResidueSubset name="design_beta_core" selector="sheet_core" >
+        <RestrictAbsentCanonicalAASRLT aas="FIPYWL" />
+    </OperateOnResidueSubset>
+   <OperateOnResidueSubset name="surface_resfile" selector="surface" >
+        <RestrictAbsentCanonicalAASRLT aas="TRDEKNQSA" />
+    </OperateOnResidueSubset>
+<OperateOnResidueSubset name="boundary_resfile" selector="boundary" >
+        <RestrictAbsentCanonicalAASRLT aas="ARNDQEGHILKMFPSTWYV" />
+    </OperateOnResidueSubset>
+  </TASKOPERATIONS>
+
+  <FILTERS>
+    # We will check at the end the final RMSD between the template and the Design
+    <RmsdFromResidueSelectorFilter name="final_rmsd" confidence="0"
+        reference_name="template_pose" reference_selector="chA"
+        query_selector="chP" />
+    # Make sure to get an evaluation of the design alone
+    <ScorePoseSegmentFromResidueSelectorFilter name="design_score" confidence="0"
+      residue_selector="chP" />
+    <PackStat name="packstat" threshold="0.64" repeats="3" confidence="0" />
+    <ExposedHydrophobics name="exposed_hydrophobic" sasa_cutoff="20" />
+    <ResidueCount name="ala_count" residue_types="ALA" max_residue_count="6" confidence="0" />
+    <ResidueCount name="met_count" residue_types="MET" max_residue_count="2" confidence="0" />
+    <ResidueCount name="aroma_count" residue_types="TRP,PHE,TYR" min_residue_count="2" confidence="0" />
+    <ResidueCount name="his_count" residue_types="HIS" max_residue_count="2" confidence="0" />
+    <ResidueCount name="cys_count" residue_types="CYS" max_residue_count="2" confidence="0" />
+
+  </FILTERS>
+
+  <MOVERS>
+    <ParsedProtocol name="filters" >
+            <Add filter_name="packstat"/>
+            <Add filter_name="exposed_hydrophobic"/>
+	    <Add filter_name="ala_count"/>
+            <Add filter_name="met_count"/>
+	    <Add filter_name="aroma_count"/>
+	    <Add filter_name="his_count"/>
+            <Add filter_name="cys_count"/>
+    </ParsedProtocol>
+    # We will save the template so we can, at the end, see how far from it our desing went
+    <SavePoseMover name="saveTemplate" restore_pose="0" reference_name="template_pose" />
+    # Both to create the fragments needed for NubInitio as well as for the NubInitio itself,
+    # only one-chain templates can be considered, so we'll need to delete the rest.
+    <DeleteRegionMover name="removeExtraChains" residue_selector="!chA" />
+    # This is one of the alternatives to load the target motif's pdb file.
+    <SavePoseMover name="load_target" reference_name="target_pose" pdb_file="./101F_epi.pdb" />
+    # The creates the fragments (if they need to be created) or loads them from a file
+    # into the DataMap with the "frags" identifier (that needs to be specified in the NubInitio).
+    <StructFragmentMover name="FragmentPicker" prefix="strucfrags_."
+      vall_file="/PATHTODATABASE/vall.jul19.2011.gz" output_frag_files="1"
+      small_frag_file="strucfrags_.300.3mers" large_frag_file="strucfrags_.300.9mers"
+    />
+    # Constraints have to be used to guide the ab initio folding.
+    <AddConstraints name="addCST" >
+      <AtomPairConstraintGenerator name="atompairCST" sd="1.0" ca_only="true"
+        use_harmonic="true" unweighted="true" min_seq_sep="6" max_distance="40" residue_selector="chA"
+      />
+    </AddConstraints>
+     <AddConstraints name="addCST_design" >
+      <SheetConstraintGenerator name="betaconstraint" secstruct="LLEEEEELLEEEEEEELLLLEEEEELLEEEEEEELLEEEEEELLLLEEEEELLEEEELLL" spairs="1-2.A.2;2-5.A.1;3-4.A.2;3-6.A.0;6-7.A.0" angle_tolerance="0.5" weight="1.5" />
+     </AddConstraints>
+     <ClearConstraintsMover name="cleanCST" />
+     <RemoveConstraints name="RemoveCST" constraint_generators="betaconstraint" />
+    # The NubInitio folding is done here.
+    <NubInitioMover name="FFL" fragments_id="strucfrags_." template_motif_selector="insertion" use_cst="true"
+      clear_motif_cst="false" rmsd_threshold="1" fullatom_scorefxn="fullatom" angle_weight="2" dihedral_weight="2" >
+      <Nub reference_name="target_pose" residue_selector="query_motif" >
+        <Segment order="1" n_term_flex="1" c_term_flex="1"/>
+      </Nub>
+    </NubInitioMover>
+    # Edit the sequence to stabilize the protein
+    <FastDesign name="DesignRelax" scorefxn="fullatom2" task_operations="FFLMOTIF_TASKOP,FFLTEMPLATE_TASKOP,design_beta_core,surface_resfile,boundary_resfile" repeats="1" delete_virtual_residues_after_FastRelax="true" movemap_factory="FFLSTANDARD_MOVEMAP" >
+    </FastDesign>
+    # Evaluate binding
+    <ResidueLabelsToPymolSelectionMover name="pymolselect"  pdb_count="true" />
+    <DisplayPoseLabelsMover name="showDesign" />
+    <GenericMonteCarlo name="genericmc1" mover_name="DesignRelax" filter_name="packstat" trials="3" sample_type="low" temperature="2" drift="1" />
+  </MOVERS>
+
+  <APPLY_TO_POSE>
+  </APPLY_TO_POSE>
+
+  <PROTOCOLS>
+    # Preparing Template
+    <Add mover="saveTemplate" />
+    <Add mover="removeExtraChains" />
+    <Add mover="FragmentPicker" />
+    <Add mover="addCST" />
+    # Fold
+    <Add mover="FFL" />
+    <Add mover="RemoveCST" />
+    <Add mover="cleanCST" />
+    # Design
+    <Add mover="addCST_design" />
+    <Add mover="showDesign" />
+    <Add mover="genericmc1" />
+    <Add mover="cleanCST" />
+    # Evaluate
+    <Add filter="final_rmsd" />
+    <Add filter="design_score" />
+    <Add mover="pymolselect" />
+    <Add mover="filters" />
+  </PROTOCOLS>
+  <OUTPUT />
+</ROSETTASCRIPTS>
+

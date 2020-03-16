@@ -1,0 +1,13 @@
+-parser:protocol FFL_design_101F.xml
+-s 101F_wt.pdb
+#-out:prefix simple_run_
+#-out:file:silent simple_run_tutorial_silent
+-out:nstruct 85
+
+-overwrite
+-in:ignore_unrecognized_res
+-in:ignore_waters
+#-out:file:silent_struct_type binary
+
+-out:levels protocols.fold_from_loops:500 protocols.relax:500 protocols.denovo_design.movers.FastDesign:500 protocols.rosetta_scripts.ParsedProtocol:500
+-out:mute protocols.abinitio

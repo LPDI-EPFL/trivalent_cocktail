@@ -1,0 +1,1 @@
+ /PATH_TO_ROSETTA/main/source/bin/rosetta_scripts.linuxiccrelease -parser:protocol FFL_script_D25.xml -s 5cwj_input_trunc_renum.pdb

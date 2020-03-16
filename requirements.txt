@@ -1,0 +1,8 @@
+pandas
+numpy
+matplotlib
+seaborn
+libconfig
+rstoolbox
+transforms3d
+scipy
